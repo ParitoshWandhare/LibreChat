@@ -42,7 +42,14 @@ const getLogStores = require('~/cache/getLogStores');
  * @param {client.CustomFetchOptions} options
  */
 async function customFetch(url, options) {
+  let resolvedUrl = url;
   const urlStr = url.toString();
+  if (urlStr.startsWith('http://localhost:4000')) {
+    resolvedUrl = new URL(
+      urlStr.replace('http://localhost:4000', 'http://host.docker.internal:4000'),
+    );
+  }
+
   logger.debug(`[openidStrategy] Request to: ${urlStr}`);
   const debugOpenId = isEnabled(process.env.DEBUG_OPENID_REQUESTS);
   if (debugOpenId) {
@@ -65,11 +72,24 @@ async function customFetch(url, options) {
       };
     }
 
-    const response = await undici.fetch(url, fetchOptions);
+    const response = await undici.fetch(resolvedUrl, fetchOptions);
 
     if (debugOpenId) {
       logger.debug(`[openidStrategy] Response status: ${response.status} ${response.statusText}`);
       logger.debug(`[openidStrategy] Response headers: ${logHeaders(response.headers)}`);
+    }
+
+    if (urlStr.includes('/.well-known/openid-configuration') && response.status === 200) {
+      const text = await response.text();
+      const fixedText = text.replaceAll(
+        'http://host.docker.internal:4000',
+        'http://localhost:4000',
+      );
+      return new Response(fixedText, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      });
     }
 
     if (response.status === 200 && response.headers.has('www-authenticate')) {
@@ -922,15 +942,21 @@ async function setupOpenId() {
       clientMetadata.token_endpoint_auth_method = 'none';
     }
 
+    const isHttp = process.env.OPENID_ISSUER?.startsWith('http://');
+    const discoveryOptions = {
+      [client.customFetch]: customFetch,
+    };
+    if (isHttp && typeof client.allowInsecureRequests === 'function') {
+      discoveryOptions.execute = [client.allowInsecureRequests];
+    }
+
     /** @type {Configuration} */
     openidConfig = await client.discovery(
       new URL(process.env.OPENID_ISSUER),
       process.env.OPENID_CLIENT_ID,
       clientMetadata,
       undefined,
-      {
-        [client.customFetch]: customFetch,
-      },
+      discoveryOptions,
     );
 
     logger.info(`[openidStrategy] OpenID authentication configuration`, {

@@ -21,6 +21,10 @@ services:
       - meilisearch
     networks:
       - librechat-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./api/strategies/openidStrategy.js:/app/api/strategies/openidStrategy.js:ro
 
   mongodb:
     image: mongo:7.0-jammy
