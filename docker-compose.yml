@@ -25,6 +25,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./api/strategies/openidStrategy.js:/app/api/strategies/openidStrategy.js:ro
+      - ./librechat.yaml:/app/librechat.yaml:ro
 
   mongodb:
     image: mongo:7.0-jammy
@@ -66,7 +67,8 @@ services:
     environment:
       - RAG_PORT=8000
       - UVICORN_WORKERS=1
-      - RAG_OPENAI_API_BASE=${OPENAI_API_BASE}
+      - RAG_OPENAI_API_BASE=${OPENAI_API_BASE:-}
+      - RAG_OPENAI_API_KEY=${OPENAI_API_KEY}
       - RAG_OPENAI_API_KEY=${OPENAI_API_KEY}
       - EMBEDDINGS_PROVIDER=${EMBEDDINGS_PROVIDER:-openai}
       - RAG_EMBEDDINGS_MODEL=${EMBEDDINGS_MODEL:-text-embedding-3-small}
